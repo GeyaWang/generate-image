@@ -49,25 +49,18 @@ class GenerateImg:
 
         for i in range(ITERATIONS):
 
-            sorted_fit_dict = None
             for _ in range(ROUNDS_PER_STEP):
-                # compute fitness of objects
-                fit_time, sorted_fit_dict = timer(self.genetic_agent.get_sorted_fitness_dict, (self.input, self.output))
+                self.genetic_agent.get_population_fitness(self.input, self.output)
 
-                # get next generation
-                self.genetic_agent.next_gen(sorted_fit_dict)
-
-            # get the best fitness and object
-            max_obj, max_fitness = list(sorted_fit_dict.items())[0]
-
-            self.output = max_obj.draw(self.output)
+            best_obj = self.genetic_agent.population[0]
+            self.output = best_obj.draw(self.output)
             self._save_img(self.output, f'./temp/{i}.jpg')
 
             if verbose:
-                print(f'{max_obj=}')
-                print(f'[{i}] max_fitness={int(max_fitness)}, fitness_time={fit_time} ({fit_time / N_OBJECTS} per), population_size={len(self.genetic_agent.population)}')
-        #
-        # self._show_img(self.output)
+                print(f'{best_obj=}')
+                print(f'[{i}] max_fitness={int(best_obj.fitness)}, population_size={len(self.genetic_agent.population)}')
+
+            self.genetic_agent.next_gen(self.input, self.output)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,10 @@
 from time import perf_counter
 
 
+def sort_dict(dict_):
+    return {k: v for k, v in sorted(dict_.items(), key=lambda i: i[1], reverse=True)}
+
+
 def timer(func, args=None):
     t1 = perf_counter()
 

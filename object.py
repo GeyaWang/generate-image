@@ -33,6 +33,8 @@ class Circle(Object):
         self.max_y = None
         self.mask = None
 
+        self.fitness = None
+
         if r is None:
             r = np.random.randint(0, min(width, height) // 2)
         if x is None:
@@ -101,7 +103,7 @@ class Circle(Object):
         new_input = input_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
         # fitness calculated as the difference of SSD with and without object, accounting for downsampling factor
-        fitness = (
+        self.fitness = (
                 np.sum(new_se) * DOWNSAMPLING_FACTOR ** 2 -
                 np.sum(np.square(np.subtract(new_img, new_input, dtype=np.int64))) * DOWNSAMPLING_FACTOR ** 2
         )
@@ -111,8 +113,6 @@ class Circle(Object):
         # cv2.imshow('', cv2.cvtColor(test, cv2.COLOR_RGB2BGR))
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
-
-        return fitness
 
     def reproduce(self):
         r = self.attr['r']
@@ -146,4 +146,4 @@ class Circle(Object):
         return Circle(self.width, self.height, r, x, y, np.array((colour_r, colour_g, colour_b), dtype=np.int16), a)
 
     def __repr__(self):
-        return f'Circle(width={self.width}, height={self.height}, r={self.attr['r']}, x={self.attr['x']}, y={self.attr['y']}, colour={self.attr['colour']}, a={self.attr['alpha']})'
+        return f'Circle(r={self.attr['r']}, x={self.attr['x']}, y={self.attr['y']}, colour={self.attr['colour']}, a={self.attr['alpha']}, fit={self.fitness})'
