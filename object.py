@@ -23,7 +23,7 @@ class Object(ABC):
 
 
 class Circle(Object):
-    def __init__(self, width: int, height: int, r: int = None, c_x: int = None, c_y: int = None, clr: np.ndarray = None, a: float = None):
+    def __init__(self, width: int, height: int, r: int = None, x: int = None, y: int = None, colour: np.ndarray = None, a: float = None):
         self.width = width
         self.height = height
 
@@ -35,18 +35,18 @@ class Circle(Object):
 
         if r is None:
             r = np.random.randint(0, min(width, height) // 2)
-        if c_x is None:
-            c_x = np.random.randint(0, width)
-        if c_y is None:
-            c_y = np.random.randint(0, height)
-        if clr is None:
+        if x is None:
+            x = np.random.randint(0, width)
+        if y is None:
+            y = np.random.randint(0, height)
+        if colour is None:
             # clr = np.array((
             #     np.random.randint(0, 255),
             #     np.random.randint(0, 255),
             #     np.random.randint(0, 255),
             # ), dtype=np.int16)
 
-            clr = np.array((
+            colour = np.array((
                 np.random.randint(0, 255),
                 np.random.randint(0, 255),
                 np.random.randint(0, 255),
@@ -55,31 +55,31 @@ class Circle(Object):
             a = np.random.random()
 
         self.attr = {
-            'radius': r,
-            'center_x': c_x,
-            'center_y': c_y,
-            'colour': clr,
+            'r': r,
+            'x': x,
+            'y': y,
+            'colour': colour,
             'alpha': a
         }
 
         self._set_mask()
 
     def _set_mask(self):
-        self.min_x = max(self.attr['center_x'] - self.attr['radius'], 0)
-        self.max_x = min(self.attr['center_x'] + self.attr['radius'], self.width)
-        self.min_y = max(self.attr['center_y'] - self.attr['radius'], 0)
-        self.max_y = min(self.attr['center_y'] + self.attr['radius'], self.height)
+        self.min_x = max(self.attr['x'] - self.attr['r'], 0)
+        self.max_x = min(self.attr['x'] + self.attr['r'], self.width)
+        self.min_y = max(self.attr['y'] - self.attr['r'], 0)
+        self.max_y = min(self.attr['y'] + self.attr['r'], self.height)
 
         self.mask = np.zeros((self.height, self.width), dtype=np.uint8)
-        cv2.circle(self.mask, (self.attr['center_x'], self.attr['center_y']), self.attr['radius'], 1, -1)
+        cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 1, -1)
         self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].astype(bool)
 
     def draw(self, img_arr: np.ndarray) -> np.ndarray:
         overlay = img_arr.copy()
         cv2.circle(
             overlay,
-            (self.attr['center_x'], self.attr['center_y']),
-            self.attr['radius'],
+            (self.attr['x'], self.attr['y']),
+            self.attr['r'],
             [int(i) for i in self.attr['colour']],
             -1,
             lineType=cv2.LINE_AA
@@ -106,33 +106,44 @@ class Circle(Object):
                 np.sum(np.square(np.subtract(new_img, new_input, dtype=np.int64))) * DOWNSAMPLING_FACTOR ** 2
         )
 
+        # test = curr_img.copy()
+        # test = self.draw(test)
+        # cv2.imshow('', cv2.cvtColor(test, cv2.COLOR_RGB2BGR))
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
         return fitness
 
     def reproduce(self):
+        r = self.attr['r']
+        x = self.attr['x']
+        y = self.attr['y']
+        colour_r = self.attr['colour'][0]
+        colour_g = self.attr['colour'][1]
+        colour_b = self.attr['colour'][2]
+        a = self.attr['alpha']
+
         if random.random() < MUTATION_CHANCE:
-            r = round(self.attr['radius'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            c_x = round(self.attr['center_x'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            c_y = round(self.attr['center_y'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            clr_r = round(self.attr['colour'][0] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            clr_g = round(self.attr['colour'][1] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            clr_b = round(self.attr['colour'][2] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
-            a = self.attr['alpha'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            r += round(r * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            r = max(r, 0)
+        if random.random() < MUTATION_CHANCE:
+            x += int(self.width * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+        if random.random() < MUTATION_CHANCE:
+            y += int(self.height * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+        if random.random() < MUTATION_CHANCE:
+            colour_r += int(255 * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            colour_r = min(max(colour_r, 0), 255)
+        if random.random() < MUTATION_CHANCE:
+            colour_g += int(255 * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            colour_g = min(max(colour_g, 0), 255)
+        if random.random() < MUTATION_CHANCE:
+            colour_b += int(255 * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            colour_b = min(max(colour_b, 0), 255)
+        if random.random() < MUTATION_CHANCE:
+            a += random.uniform(-MUTATION_RATE, MUTATION_RATE)
+            a = min(max(a, 0), 1)
 
-            r = max(self.attr['radius'], 0)
-            clr_r = min(max(self.attr['colour'][0], 0), 255)
-            clr_g = min(max(self.attr['colour'][1], 0), 255)
-            clr_b = min(max(self.attr['colour'][2], 0), 255)
-            a = min(max(self.attr['alpha'], 0), 1)
-        else:
-            r = self.attr['radius']
-            c_x = self.attr['center_x']
-            c_y = self.attr['center_y']
-            clr_r = self.attr['colour'][0]
-            clr_g = self.attr['colour'][1]
-            clr_b = self.attr['colour'][2]
-            a = self.attr['alpha']
-
-        return Circle(self.width, self.height, r, c_x, c_y, np.array((clr_r, clr_g, clr_b), dtype=np.int16), a)
+        return Circle(self.width, self.height, r, x, y, np.array((colour_r, colour_g, colour_b), dtype=np.int16), a)
 
     def __repr__(self):
-        return f'Circle(width={self.width}, height={self.height}, r={self.attr['radius']}, c_x={self.attr['center_x']}, c_y={self.attr['center_y']}, clr={self.attr['colour']}, a={self.attr['alpha']})'
+        return f'Circle(width={self.width}, height={self.height}, r={self.attr['r']}, x={self.attr['x']}, y={self.attr['y']}, colour={self.attr['colour']}, a={self.attr['alpha']})'

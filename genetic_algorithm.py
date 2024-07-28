@@ -30,13 +30,19 @@ class GeneticAlgorithm:
                 obj, fitness = future.result()
                 fit_dict[obj] = fitness
 
+        # fit_dict = {obj: self._get_fitness(obj, input_, output, curr_se)[1] for obj in self.population}
+        # print(fit_dict)
+
         sorted_dict = {k: v for k, v in sorted(fit_dict.items(), key=lambda i: i[1], reverse=True)}
 
         return sorted_dict
 
     @staticmethod
-    def _mutate(obj: Object):
-        obj.mutate()
+    def _get_children(n: int, obj: Object):
+        children = []
+        for _ in range(n):
+            children.append(obj.reproduce())
+        return children
 
     def next_gen(self, sorted_fit_dict: dict[Object: float]):
         next_gen = []
@@ -47,11 +53,15 @@ class GeneticAlgorithm:
         next_gen.extend(parents)
 
         n_children = int(1 / SAVE_TOP_RATIO) - 1
-        for p in parents:
-            for _ in range(n_children):
-                child = p.reproduce()
-                next_gen.append(child)
+        # for p in parents:
+        #     for _ in range(n_children):
+        #         child = p.reproduce()
+        #         next_gen.append(child)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(self._get_children, n_children, p): p for p in parents}
 
-        print(f'{len(next_gen)=}')
+            for future in concurrent.futures.as_completed(futures):
+                children = future.result()
+                next_gen.extend(children)
 
         self.population = next_gen
