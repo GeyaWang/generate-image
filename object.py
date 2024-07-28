@@ -1,20 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import numpy as np
+from time import perf_counter
 import cv2
 import random
 from settings import *
-
-
-@dataclass
-class Colour:
-    r: int
-    g: int
-    b: int
-
-    @property
-    def val(self):
-        return self.r, self.g, self.b
 
 
 class Object(ABC):
@@ -29,12 +18,12 @@ class Object(ABC):
         pass
 
     @abstractmethod
-    def mutate(self, *args, **kwargs):
+    def reproduce(self, *args, **kwargs):
         pass
 
 
 class Circle(Object):
-    def __init__(self, width: int, height: int, r: int = None, c_x: int = None, c_y: int = None, clr: Colour = None):
+    def __init__(self, width: int, height: int, r: int = None, c_x: int = None, c_y: int = None, clr: np.ndarray = None, a: float = None):
         self.width = width
         self.height = height
 
@@ -51,13 +40,26 @@ class Circle(Object):
         if c_y is None:
             c_y = np.random.randint(0, height)
         if clr is None:
-            clr = Colour(np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
+            # clr = np.array((
+            #     np.random.randint(0, 255),
+            #     np.random.randint(0, 255),
+            #     np.random.randint(0, 255),
+            # ), dtype=np.int16)
+
+            clr = np.array((
+                np.random.randint(0, 255),
+                np.random.randint(0, 255),
+                np.random.randint(0, 255),
+            ), dtype=np.int16)
+        if a is None:
+            a = np.random.random()
 
         self.attr = {
             'radius': r,
             'center_x': c_x,
             'center_y': c_y,
-            'colour': clr
+            'colour': clr,
+            'alpha': a
         }
 
         self._set_mask()
@@ -70,48 +72,67 @@ class Circle(Object):
 
         self.mask = np.zeros((self.height, self.width), dtype=np.uint8)
         cv2.circle(self.mask, (self.attr['center_x'], self.attr['center_y']), self.attr['radius'], 1, -1)
-        self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x]
+        self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].astype(bool)
 
-    def draw(self, img_arr: np.ndarray):
+    def draw(self, img_arr: np.ndarray) -> np.ndarray:
+        overlay = img_arr.copy()
         cv2.circle(
-            img_arr,
+            overlay,
             (self.attr['center_x'], self.attr['center_y']),
             self.attr['radius'],
-            (self.attr['colour'].r, self.attr['colour'].g, self.attr['colour'].b),
+            [int(i) for i in self.attr['colour']],
             -1,
             lineType=cv2.LINE_AA
         )
+        img_arr = cv2.addWeighted(overlay, self.attr['alpha'], img_arr, 1 - self.attr['alpha'], 0)
+        return img_arr
 
     def get_fitness(self, input_img: np.ndarray, curr_img: np.ndarray, curr_se: np.ndarray) -> float:
-        new_img_arr = curr_img[self.min_y:self.max_y, self.min_x:self.max_x].copy()
-        new_img_arr[self.mask == 1] = self.attr['colour'].val
+        # crop, downsample and copy image array
+        new_img = curr_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].copy()
 
+        # draw circle using alpha channel
+        new_img[self.mask] = (1 - self.attr['alpha']) * new_img[self.mask] + self.attr['alpha'] * self.attr['colour']
+
+        # crop and downsample square error array
+        new_se = curr_se[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
+
+        # crop and downsample input image array
+        new_input = input_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
+
+        # fitness calculated as the difference of SSD with and without object, accounting for downsampling factor
         fitness = (
-                np.sum(curr_se[self.min_y:self.max_y, self.min_x:self.max_x]) -
-                np.sum(np.subtract(new_img_arr, input_img[self.min_y:self.max_y, self.min_x:self.max_x], dtype=np.int64) ** 2)
+                np.sum(new_se) * DOWNSAMPLING_FACTOR ** 2 -
+                np.sum(np.square(np.subtract(new_img, new_input, dtype=np.int64))) * DOWNSAMPLING_FACTOR ** 2
         )
 
         return fitness
 
-    def mutate(self):
+    def reproduce(self):
         if random.random() < MUTATION_CHANCE:
-            r_delta = round(self.attr['radius'] * MUTATION_RATE)
-            c_x_delta = round(self.attr['center_x'] * MUTATION_RATE)
-            c_y_delta = round(self.attr['center_y'] * MUTATION_RATE)
-            clr_r_delta = round(self.attr['colour'].r * MUTATION_RATE)
-            clr_g_delta = round(self.attr['colour'].g * MUTATION_RATE)
-            clr_b_delta = round(self.attr['colour'].b * MUTATION_RATE)
+            r = round(self.attr['radius'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            c_x = round(self.attr['center_x'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            c_y = round(self.attr['center_y'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            clr_r = round(self.attr['colour'][0] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            clr_g = round(self.attr['colour'][1] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            clr_b = round(self.attr['colour'][2] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE)))
+            a = self.attr['alpha'] * (1 + random.uniform(-MUTATION_RATE, MUTATION_RATE))
 
-            self.attr['radius'] += random.randint(-r_delta, r_delta)
-            self.attr['center_x'] += random.randint(-c_x_delta, c_x_delta)
-            self.attr['center_y'] += random.randint(-c_y_delta, c_y_delta)
-            self.attr['colour'].r += random.randint(-clr_r_delta, clr_r_delta)
-            self.attr['colour'].g += random.randint(-clr_g_delta, clr_g_delta)
-            self.attr['colour'].b += random.randint(-clr_b_delta, clr_b_delta)
+            r = max(self.attr['radius'], 0)
+            clr_r = min(max(self.attr['colour'][0], 0), 255)
+            clr_g = min(max(self.attr['colour'][1], 0), 255)
+            clr_b = min(max(self.attr['colour'][2], 0), 255)
+            a = min(max(self.attr['alpha'], 0), 1)
+        else:
+            r = self.attr['radius']
+            c_x = self.attr['center_x']
+            c_y = self.attr['center_y']
+            clr_r = self.attr['colour'][0]
+            clr_g = self.attr['colour'][1]
+            clr_b = self.attr['colour'][2]
+            a = self.attr['alpha']
 
-            self.attr['radius'] = max(self.attr['radius'], 0)
-            self.attr['colour'].r = min(max(self.attr['colour'].r, 0), 255)
-            self.attr['colour'].g = min(max(self.attr['colour'].g, 0), 255)
-            self.attr['colour'].b = min(max(self.attr['colour'].b, 0), 255)
+        return Circle(self.width, self.height, r, c_x, c_y, np.array((clr_r, clr_g, clr_b), dtype=np.int16), a)
 
-            self._set_mask()
+    def __repr__(self):
+        return f'Circle(width={self.width}, height={self.height}, r={self.attr['radius']}, c_x={self.attr['center_x']}, c_y={self.attr['center_y']}, clr={self.attr['colour']}, a={self.attr['alpha']})'

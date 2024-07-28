@@ -4,6 +4,7 @@ import os
 import glob
 from genetic_algorithm import GeneticAlgorithm
 from settings import *
+import random
 from helper import timer
 
 
@@ -34,32 +35,38 @@ class GenerateImg:
         cv2.destroyAllWindows()
 
     def run(self, verbose: bool = True):
-        # create, empty temp folder
         if not os.path.exists('./temp'):
+            # create temp folder
             os.makedirs('./temp')
             print(f'Created directory {os.path.abspath('./temp')}')
+        else:
+            # empty temp folder
+            files = glob.glob('./temp/*')
+            if files:
+                print(f'Emptied directory {os.path.abspath('./temp')}')
+            for f in files:
+                os.remove(f)
 
-        files = glob.glob('./temp/*')
-        if files:
-            print(f'Emptied directory {os.path.abspath('./temp')}')
-        for f in files:
-            os.remove(f)
+        for i in range(ITERATIONS):
 
-        for i in range(N_ITERATIONS):
-            # compute fitness of objects
-            fit_time, sorted_fit_dict = timer(self.genetic_agent.get_sorted_fitness_dict, (self.input, self.output))
+            sorted_fit_dict = None
+            for _ in range(ROUNDS_PER_STEP):
+                # compute fitness of objects
+                fit_time, sorted_fit_dict = timer(self.genetic_agent.get_sorted_fitness_dict, (self.input, self.output))
+
+                # get next generation
+                self.genetic_agent.next_gen(sorted_fit_dict)
 
             # get the best fitness and object
             max_obj, max_fitness = list(sorted_fit_dict.items())[0]
 
-            max_obj.draw(self.output)
+            self.output = max_obj.draw(self.output)
             self._save_img(self.output, f'./temp/{i}.jpg')
 
-            gen_time = timer(self.genetic_agent.next_gen, (sorted_fit_dict,))
-
             if verbose:
-                print(f'[{i}] max_fitness={int(max_fitness)}, fitness_time={fit_time} ({fit_time / N_OBJECTS} per), gen_time={gen_time}, population_size={len(self.genetic_agent.population)}')
-
+                print(f'{max_obj=}')
+                print(f'[{i}] max_fitness={int(max_fitness)}, fitness_time={fit_time} ({fit_time / N_OBJECTS} per), population_size={len(self.genetic_agent.population)}')
+        #
         # self._show_img(self.output)
 
 

@@ -34,12 +34,6 @@ class GeneticAlgorithm:
 
         return sorted_dict
 
-    def _crossover(self, p1: Object, p2: Object) -> tuple[Object, Object]:
-        crossover_point = random.randint(1, len(p1.attr) - 1)
-        c1 = Circle(self.width, self.height, *(tuple(p1.attr.values())[:crossover_point] + tuple(p2.attr.values())[crossover_point:]))
-        c2 = Circle(self.width, self.height, *(tuple(p2.attr.values())[:crossover_point] + tuple(p1.attr.values())[crossover_point:]))
-        return c1, c2
-
     @staticmethod
     def _mutate(obj: Object):
         obj.mutate()
@@ -48,38 +42,16 @@ class GeneticAlgorithm:
         next_gen = []
 
         # keep top n objects
-        n = int(N_OBJECTS * ELITISM_RATIO)
-        next_gen.extend(list(sorted_fit_dict.keys())[:n])
+        n = int(N_OBJECTS * SAVE_TOP_RATIO)
+        parents = list(sorted_fit_dict.keys())[:n]
+        next_gen.extend(parents)
 
-        # tournament selection to pick parents
-        parents = []
-        for _ in range(N_OBJECTS - n):
-            max_fitness = -float("inf")
-            max_obj = None
-            for _ in range(TOURNAMENT_SIZE):
-                obj, fitness = random.choice(list(sorted_fit_dict.items()))
-                if fitness > max_fitness:
-                    max_fitness = fitness
-                    max_obj = obj
-            parents.append(max_obj)
+        n_children = int(1 / SAVE_TOP_RATIO) - 1
+        for p in parents:
+            for _ in range(n_children):
+                child = p.reproduce()
+                next_gen.append(child)
 
-        # crossover between parents
-        paired_parents = []
-        for i in range(len(parents) // 2):
-            paired_parents.append((parents[i], parents[i + 1]))
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = {executor.submit(self._crossover, *p): p for p in paired_parents}
-
-            for future in concurrent.futures.as_completed(futures):
-                next_gen.extend(future.result())
-
-        if len(parents) % 2 == 1:
-            next_gen.append(parents[-1])
-
-        # mutate next generation
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            for obj in next_gen:
-                executor.submit(self._mutate, obj)
+        print(f'{len(next_gen)=}')
 
         self.population = next_gen
