@@ -14,22 +14,22 @@ class GenerateImg:
         raw_input_arr = cv2.imread(IMG_PATH)
         raw_height, raw_width = raw_input_arr.shape[:2]
 
-        self.input = cv2.cvtColor(cv2.resize(raw_input_arr, (int(raw_width * RES_SCALE), int(raw_height * RES_SCALE))), cv2.COLOR_BGR2RGB)
+        self.input = cv2.cvtColor(cv2.resize(raw_input_arr, (int(raw_width * RES_SCALE), int(raw_height * RES_SCALE))), cv2.COLOR_BGR2RGB).astype(np.int64)
         self.height, self.width = self.input.shape[:2]
-        self.output = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        self.output = np.zeros((self.height, self.width, 3), dtype=np.int64)
 
         # init objects
         self.genetic_agent = GeneticAlgorithm(self.width, self.height)
 
     @staticmethod
     def _save_img(img: np.ndarray, filepath: str, verbose: bool = True):
-        cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(filepath, cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
         if verbose:
             print(f'Saved file to {os.path.abspath(filepath)}')
 
     @staticmethod
     def _show_img(img: np.ndarray, name: str = ''):
-        cv2.imshow(name, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imshow(name, cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2BGR))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -59,7 +59,7 @@ class GenerateImg:
             fit_time = time.perf_counter() - t1
 
             best_obj = self.genetic_agent.population[0]
-            best_obj.draw(self.output)
+            self.output = best_obj.draw(self.output)
 
             if verbose:
                 print(f'[{i}] max_fitness={int(best_obj.fitness)}, population_size={len(self.genetic_agent.population)}, {fit_time=}, {gen_time=}')

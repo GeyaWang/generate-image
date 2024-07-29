@@ -67,15 +67,17 @@ class Circle(Object):
         cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 1, -1)
         self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
-    def draw(self, img_arr: np.ndarray):
+    def draw(self, img_arr: np.ndarray) -> np.ndarray:
+        new_img = img_arr.astype(np.uint8)
         cv2.circle(
-            img_arr,
+            new_img,
             (self.attr['x'], self.attr['y']),
             self.attr['r'],
             [int(i) for i in self.attr['colour']],
             -1,
             lineType=cv2.LINE_AA
         )
+        return new_img
 
     def get_fitness(self, input_img: np.ndarray, curr_img: np.ndarray, curr_se: np.ndarray):
         # crop, downsample and copy image array
@@ -93,7 +95,7 @@ class Circle(Object):
         # fitness calculated as the difference of SSD with and without object, accounting for downsampling factor
         self.fitness = (
                 np.sum(new_se) * DOWNSAMPLING_FACTOR ** 2 -
-                np.sum(np.square(np.subtract(new_img, new_input, dtype=np.int64))) * DOWNSAMPLING_FACTOR ** 2
+                np.sum(np.square(np.subtract(new_img, new_input))) * DOWNSAMPLING_FACTOR ** 2
         )
 
     def reproduce(self):

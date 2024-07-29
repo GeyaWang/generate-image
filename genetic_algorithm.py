@@ -26,7 +26,7 @@ class GeneticAlgorithm:
 
     def get_population_fitness(self, input_, output):
         # compute fitness of objects
-        curr_se = np.subtract(output, input_, dtype=np.int64) ** 2
+        curr_se = np.square(np.subtract(output, input_))
 
         if PARALLELIZATION:
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -61,7 +61,7 @@ class GeneticAlgorithm:
                 self.population.append(child)
 
     def next_gen(self, input_, output):
-        curr_se = np.subtract(output, input_, dtype=np.int64) ** 2
+        curr_se = np.square(np.subtract(output, input_))
 
         # keep top n objects
         n = int(N_OBJECTS * SAVE_TOP_RATIO)
