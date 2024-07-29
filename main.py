@@ -4,8 +4,7 @@ import os
 import glob
 from genetic_algorithm import GeneticAlgorithm
 from settings import *
-import random
-from helper import timer
+import time
 
 
 class GenerateImg:
@@ -34,33 +33,42 @@ class GenerateImg:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    def run(self, verbose: bool = True):
+    @ staticmethod
+    def _create_temp_dir():
         if not os.path.exists('./temp'):
             # create temp folder
             os.makedirs('./temp')
-            print(f'Created directory {os.path.abspath('./temp')}')
+            print(f'Created directory {os.path.abspath("./temp")}')
         else:
             # empty temp folder
             files = glob.glob('./temp/*')
             if files:
-                print(f'Emptied directory {os.path.abspath('./temp')}')
+                print(f'Emptied directory {os.path.abspath("./temp")}')
             for f in files:
                 os.remove(f)
 
+    def run(self, verbose: bool = True):
+        self._create_temp_dir()
+
+        gen_time = None
         for i in range(ITERATIONS):
 
+            t1 = time.perf_counter()
             for _ in range(ROUNDS_PER_STEP):
                 self.genetic_agent.get_population_fitness(self.input, self.output)
+            fit_time = time.perf_counter() - t1
 
             best_obj = self.genetic_agent.population[0]
-            self.output = best_obj.draw(self.output)
-            self._save_img(self.output, f'./temp/{i}.jpg')
+            best_obj.draw(self.output)
 
             if verbose:
+                print(f'[{i}] max_fitness={int(best_obj.fitness)}, population_size={len(self.genetic_agent.population)}, {fit_time=}, {gen_time=}')
                 print(f'{best_obj=}')
-                print(f'[{i}] max_fitness={int(best_obj.fitness)}, population_size={len(self.genetic_agent.population)}')
+            self._save_img(self.output, f'./temp/{i}.jpg', verbose)
 
+            t1 = time.perf_counter()
             self.genetic_agent.next_gen(self.input, self.output)
+            gen_time = time.perf_counter() - t1
 
 
 if __name__ == '__main__':

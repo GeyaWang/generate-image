@@ -23,7 +23,7 @@ class Object(ABC):
 
 
 class Circle(Object):
-    def __init__(self, width: int, height: int, r: int = None, x: int = None, y: int = None, colour: np.ndarray = None, a: float = None):
+    def __init__(self, width: int, height: int, r: int = None, x: int = None, y: int = None, colour: np.ndarray = None):
         self.width = width
         self.height = height
 
@@ -42,26 +42,17 @@ class Circle(Object):
         if y is None:
             y = np.random.randint(0, height)
         if colour is None:
-            # clr = np.array((
-            #     np.random.randint(0, 255),
-            #     np.random.randint(0, 255),
-            #     np.random.randint(0, 255),
-            # ), dtype=np.int16)
-
             colour = np.array((
                 np.random.randint(0, 255),
                 np.random.randint(0, 255),
                 np.random.randint(0, 255),
             ), dtype=np.int16)
-        if a is None:
-            a = np.random.random()
 
         self.attr = {
             'r': r,
             'x': x,
             'y': y,
             'colour': colour,
-            'alpha': a
         }
 
         self._set_mask()
@@ -74,27 +65,24 @@ class Circle(Object):
 
         self.mask = np.zeros((self.height, self.width), dtype=np.uint8)
         cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 1, -1)
-        self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].astype(bool)
+        self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
-    def draw(self, img_arr: np.ndarray) -> np.ndarray:
-        overlay = img_arr.copy()
+    def draw(self, img_arr: np.ndarray):
         cv2.circle(
-            overlay,
+            img_arr,
             (self.attr['x'], self.attr['y']),
             self.attr['r'],
             [int(i) for i in self.attr['colour']],
             -1,
             lineType=cv2.LINE_AA
         )
-        img_arr = cv2.addWeighted(overlay, self.attr['alpha'], img_arr, 1 - self.attr['alpha'], 0)
-        return img_arr
 
-    def get_fitness(self, input_img: np.ndarray, curr_img: np.ndarray, curr_se: np.ndarray) -> float:
+    def get_fitness(self, input_img: np.ndarray, curr_img: np.ndarray, curr_se: np.ndarray):
         # crop, downsample and copy image array
         new_img = curr_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].copy()
 
-        # draw circle using alpha channel
-        new_img[self.mask] = (1 - self.attr['alpha']) * new_img[self.mask] + self.attr['alpha'] * self.attr['colour']
+        # draw circle
+        new_img[self.mask == 1] = self.attr['colour']
 
         # crop and downsample square error array
         new_se = curr_se[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
@@ -108,12 +96,6 @@ class Circle(Object):
                 np.sum(np.square(np.subtract(new_img, new_input, dtype=np.int64))) * DOWNSAMPLING_FACTOR ** 2
         )
 
-        # test = curr_img.copy()
-        # test = self.draw(test)
-        # cv2.imshow('', cv2.cvtColor(test, cv2.COLOR_RGB2BGR))
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-
     def reproduce(self):
         r = self.attr['r']
         x = self.attr['x']
@@ -121,7 +103,6 @@ class Circle(Object):
         colour_r = self.attr['colour'][0]
         colour_g = self.attr['colour'][1]
         colour_b = self.attr['colour'][2]
-        a = self.attr['alpha']
 
         if random.random() < MUTATION_CHANCE:
             r += round(r * random.uniform(-MUTATION_RATE, MUTATION_RATE))
@@ -139,11 +120,8 @@ class Circle(Object):
         if random.random() < MUTATION_CHANCE:
             colour_b += int(255 * random.uniform(-MUTATION_RATE, MUTATION_RATE))
             colour_b = min(max(colour_b, 0), 255)
-        if random.random() < MUTATION_CHANCE:
-            a += random.uniform(-MUTATION_RATE, MUTATION_RATE)
-            a = min(max(a, 0), 1)
 
-        return Circle(self.width, self.height, r, x, y, np.array((colour_r, colour_g, colour_b), dtype=np.int16), a)
+        return Circle(self.width, self.height, r, x, y, np.array((colour_r, colour_g, colour_b), dtype=np.int16))
 
     def __repr__(self):
-        return f'Circle(r={self.attr['r']}, x={self.attr['x']}, y={self.attr['y']}, colour={self.attr['colour']}, a={self.attr['alpha']}, fit={self.fitness})'
+        return f'Circle(r={self.attr["r"]}, x={self.attr["x"]}, y={self.attr["y"]}, colour={self.attr["colour"]}, fit={self.fitness})'
