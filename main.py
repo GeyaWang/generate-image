@@ -2,9 +2,8 @@ import cv2
 import numpy as np
 import os
 import glob
-from genetic_algorithm import GeneticAlgorithm
+from model import Model
 from settings import *
-import time
 
 
 class GenerateImg:
@@ -19,7 +18,7 @@ class GenerateImg:
         self.output = np.zeros((self.height, self.width, 3), dtype=np.int64)
 
         # init objects
-        self.genetic_agent = GeneticAlgorithm(self.width, self.height)
+        self.genetic_model = Model(self.width, self.height)
 
     @staticmethod
     def _save_img(img: np.ndarray, filepath: str, verbose: bool = True):
@@ -50,25 +49,22 @@ class GenerateImg:
     def run(self, verbose: bool = True):
         self._create_temp_dir()
 
-        gen_time = None
+        self.genetic_model.get_population_fitness(self.input, self.output)
         for i in range(ITERATIONS):
-
-            t1 = time.perf_counter()
             for _ in range(ROUNDS_PER_STEP):
-                self.genetic_agent.get_population_fitness(self.input, self.output)
-            fit_time = time.perf_counter() - t1
+                self.genetic_model.next_gen(self.input, self.output)
 
-            best_obj = self.genetic_agent.population[0]
+            if FIT_CHECK:
+                while self.genetic_model.population[0].fitness < 0:
+                    print('test')
+                    self.genetic_model.next_gen(self.input, self.output)
+
+            best_obj = self.genetic_model.population[0]
+            print(f'\n[{i}] {best_obj=}')
+
             self.output = best_obj.draw(self.output)
-
-            if verbose:
-                print(f'[{i}] max_fitness={int(best_obj.fitness)}, population_size={len(self.genetic_agent.population)}, {fit_time=}, {gen_time=}')
-                print(f'{best_obj=}')
             self._save_img(self.output, f'./temp/{i}.jpg', verbose)
-
-            t1 = time.perf_counter()
-            self.genetic_agent.next_gen(self.input, self.output)
-            gen_time = time.perf_counter() - t1
+            self.genetic_model.get_population_fitness(self.input, self.output)
 
 
 if __name__ == '__main__':

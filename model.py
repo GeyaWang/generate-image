@@ -11,7 +11,7 @@ if SEED is not None:
     random.seed(SEED)
 
 
-class GeneticAlgorithm:
+class Model:
     def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
@@ -21,27 +21,27 @@ class GeneticAlgorithm:
         self.children = []
 
     @staticmethod
-    def _get_fitness(obj: Object, input_: np.ndarray, output: np.ndarray, curr_se: np.ndarray):
-        obj.get_fitness(input_, output, curr_se)
+    def _get_fitness(obj: Object, input_: np.ndarray, output: np.ndarray, old_se: np.ndarray):
+        obj.get_fitness(input_, output, old_se)
 
-    def get_population_fitness(self, input_, output):
+    def get_population_fitness(self, input_: np.ndarray, output: np.ndarray):
         # compute fitness of objects
-        curr_se = np.square(np.subtract(output, input_))
+        old_se = np.square(np.subtract(output, input_))
 
         if PARALLELIZATION:
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 for obj in self.population:
-                    executor.submit(self._get_fitness, obj, input_, output, curr_se)
+                    executor.submit(self._get_fitness, obj, input_, output, old_se)
         else:
             for obj in self.population:
-                self._get_fitness(obj, input_, output, curr_se)
+                self._get_fitness(obj, input_, output, old_se)
 
         self._sort_population()
 
     def _sort_population(self):
         self.population = sorted(self.population, key=lambda x: x.fitness, reverse=True)
 
-    def _crowding(self, n, p, input_, output, curr_se):
+    def _crowding(self, n, p, input_, output, old_se):
         for _ in range(n):
             child = p.reproduce()
             crowd = random.sample(self.population, CROWD_SIZE)
@@ -54,14 +54,14 @@ class GeneticAlgorithm:
                     min_distance = distance
                     min_dist_obj = obj
 
-            child.get_fitness(input_, output, curr_se)
+            child.get_fitness(input_, output, old_se)
 
             if child.fitness > min_dist_obj.fitness:
                 self.population.remove(min_dist_obj)
                 self.population.append(child)
 
-    def next_gen(self, input_, output):
-        curr_se = np.square(np.subtract(output, input_))
+    def next_gen(self, input_: np.ndarray, output: np.ndarray):
+        old_se = np.square(np.subtract(output, input_))
 
         # keep top n objects
         n = int(N_OBJECTS * SAVE_TOP_RATIO)
@@ -72,7 +72,9 @@ class GeneticAlgorithm:
         if PARALLELIZATION:
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 for p in parents:
-                    executor.submit(self._crowding, n_children, p, input_, output, curr_se)
+                    executor.submit(self._crowding, n_children, p, input_, output, old_se)
         else:
             for p in parents:
-                self._crowding(n_children, p, input_, output, curr_se)
+                self._crowding(n_children, p, input_, output, old_se)
+
+        self._sort_population()

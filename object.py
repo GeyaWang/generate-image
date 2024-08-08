@@ -58,44 +58,61 @@ class Circle(Object):
         self._set_mask()
 
     def _set_mask(self):
-        self.min_x = max(self.attr['x'] - self.attr['r'], 0)
-        self.max_x = min(self.attr['x'] + self.attr['r'], self.width)
-        self.min_y = max(self.attr['y'] - self.attr['r'], 0)
-        self.max_y = min(self.attr['y'] + self.attr['r'], self.height)
+        # get bounding box coords with padding
+        self.min_x = max(self.attr['x'] - self.attr['r'] - 1, 0)
+        self.max_x = min(self.attr['x'] + self.attr['r'] + 1, self.width)
+        self.min_y = max(self.attr['y'] - self.attr['r'] - 1, 0)
+        self.max_y = min(self.attr['y'] + self.attr['r'] + 1, self.height)
 
         self.mask = np.zeros((self.height, self.width), dtype=np.uint8)
-        cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 1, -1)
+        if ANTIALIASING:
+            cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 255, -1, lineType=cv2.LINE_AA)
+            self.mask = self.mask / 255
+        else:
+            cv2.circle(self.mask, (self.attr['x'], self.attr['y']), self.attr['r'], 1, -1)
         self.mask = self.mask[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
     def draw(self, img_arr: np.ndarray) -> np.ndarray:
         new_img = img_arr.astype(np.uint8)
-        cv2.circle(
-            new_img,
-            (self.attr['x'], self.attr['y']),
-            self.attr['r'],
-            [int(i) for i in self.attr['colour']],
-            -1,
-            lineType=cv2.LINE_AA
-        )
+        if ANTIALIASING:
+            cv2.circle(
+                new_img,
+                (self.attr['x'], self.attr['y']),
+                self.attr['r'],
+                [int(i) for i in self.attr['colour']],
+                -1,
+                lineType=cv2.LINE_AA
+            )
+        else:
+            cv2.circle(
+                new_img,
+                (self.attr['x'], self.attr['y']),
+                self.attr['r'],
+                [int(i) for i in self.attr['colour']],
+                -1
+            )
         return new_img
 
-    def get_fitness(self, input_img: np.ndarray, curr_img: np.ndarray, curr_se: np.ndarray):
+    def get_fitness(self, input_img: np.ndarray, old_img: np.ndarray, old_se: np.ndarray):
         # crop, downsample and copy image array
-        new_img = curr_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].copy()
+        new_img = old_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR].copy()
 
         # draw circle
-        new_img[self.mask == 1] = self.attr['colour']
+        if ANTIALIASING:
+            new_img = self.mask[..., np.newaxis] * self.attr['colour'] + (1 - self.mask[..., np.newaxis]) * new_img
+        else:
+            new_img[self.mask == 1] = self.attr['colour']
 
         # crop and downsample square error array
-        new_se = curr_se[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
+        cropped_se = old_se[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
         # crop and downsample input image array
-        new_input = input_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
+        cropped_input = input_img[self.min_y:self.max_y, self.min_x:self.max_x][::DOWNSAMPLING_FACTOR, ::DOWNSAMPLING_FACTOR]
 
         # fitness calculated as the difference of SSD with and without object, accounting for downsampling factor
         self.fitness = (
-                np.sum(new_se) * DOWNSAMPLING_FACTOR ** 2 -
-                np.sum(np.square(np.subtract(new_img, new_input))) * DOWNSAMPLING_FACTOR ** 2
+                np.sum(cropped_se) * DOWNSAMPLING_FACTOR ** 2 -
+                np.sum(np.square(np.subtract(new_img, cropped_input))) * DOWNSAMPLING_FACTOR ** 2
         )
 
     def reproduce(self):
@@ -107,7 +124,9 @@ class Circle(Object):
         colour_b = self.attr['colour'][2]
 
         if random.random() < MUTATION_CHANCE:
-            r += round(r * random.uniform(-MUTATION_RATE, MUTATION_RATE))
+            delta = r * random.uniform(-MUTATION_RATE, MUTATION_RATE)
+            delta = 1 if 0 <= delta < 1 else -1 if -1 < delta < 0 else round(delta)  # ensure delta < -1 or delta > 1
+            r += delta
             r = max(r, 0)
         if random.random() < MUTATION_CHANCE:
             x += int(self.width * random.uniform(-MUTATION_RATE, MUTATION_RATE))
