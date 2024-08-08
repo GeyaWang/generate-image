@@ -127,7 +127,7 @@ class Circle(Object):
             delta = r * random.uniform(-MUTATION_RATE, MUTATION_RATE)
             delta = 1 if 0 <= delta < 1 else -1 if -1 < delta < 0 else round(delta)  # ensure delta < -1 or delta > 1
             r += delta
-            r = max(r, 0)
+            r = max(r, 1)
         if random.random() < MUTATION_CHANCE:
             x += int(self.width * random.uniform(-MUTATION_RATE, MUTATION_RATE))
         if random.random() < MUTATION_CHANCE:
