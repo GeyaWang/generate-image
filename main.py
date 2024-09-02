@@ -32,7 +32,7 @@ class GenerateImg:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    @ staticmethod
+    @staticmethod
     def _create_temp_dir():
         if not os.path.exists('./temp'):
             # create temp folder
